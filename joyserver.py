@@ -27,8 +27,8 @@ MIN_MOTOR_V = 100
 SCALE_MOTOR_VALUE = 150
 
 swt_gpio = [12, 5]
-vrx_channel = [0, 2]
-vry_channel = [1, 3]
+vrx_channel = [3, 1]
+vry_channel = [2, 0]
 #######################
 
 ## Calibration Data #######
@@ -197,7 +197,7 @@ def ReadJoy(joynum):
     vrx_pos = SpiRead(vrx_channel[joynum])
     vry_pos = SpiRead(vry_channel[joynum])
     vrx_pos_cal, vry_pos_cal = Adjust(vrx_pos, vry_pos, center_x[joynum], center_y[joynum])
-    vrx_pos_scale, vry_pos_scale = Scale(Reverse(vrx_pos_cal), vry_pos_cal)
+    vrx_pos_scale, vry_pos_scale = Scale(Reverse(vrx_pos_cal), Reverse(vry_pos_cal))
 
     return vrx_pos_scale, vry_pos_scale
 
@@ -254,7 +254,7 @@ def main_test():
 async def main():
     global ledon
 
-    client_socket, client_thread = InitSocket()
+    #client_socket, client_thread = InitSocket()
     InitSpi()
     InitGpio(0)
     InitGpio(1)
@@ -283,11 +283,11 @@ async def main():
                 if ledon != last_ledon:
                     ledmsg = "{0}z".format(ledon)
                     print(f"[WIFI] Sent: {ledmsg}")
-                    client_socket.send(ledmsg.encode())
+                    #client_socket.send(ledmsg.encode())
                     last_ledon = ledon
 
-                    with condition:
-                        condition.wait()
+                    #with condition:
+                    #    condition.wait()
 
         except KeyboardInterrupt:
             print("Thread exit by KeyboardInterrupt")
@@ -296,7 +296,7 @@ async def main():
             print("Thread exit by socket error")
 
         except Exception as e:
-            print(f"Exception : {e}")
+            print(f"BT Exception : {e}")
 
     print('disconnect')
 
