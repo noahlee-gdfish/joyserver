@@ -1,16 +1,25 @@
 import sys
-import socket
 import threading
+import socket
 import RPi.GPIO as GPIO
 import spidev
 import time
+import asyncio
+from bleak import BleakScanner, BleakClient
 
-TEST_MODE = False
+## BLE Settings #######
+BLE_DEV_ADDRESS = "3C:8A:1F:C1:DC:D2"
+RX_CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+TX_CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#######################
 
+## WIFI Settings ######
 DEFAULT_HOST = "192.168.219.113"
 DEFAULT_PORT = 9000
 BUF_SIZE = 1024
+#######################
 
+## JOY Settings #######
 MAX_VALUE = 1023
 SCALE_JOY_VALUE = 200
 CAL_COUNT = 100
@@ -20,14 +29,43 @@ SCALE_MOTOR_VALUE = 150
 swt_gpio = [12, 5]
 vrx_channel = [0, 2]
 vry_channel = [1, 3]
-
-spi = None
-condition = None
+#######################
 
 ## Calibration Data #######
 center_x = [MAX_VALUE/2, MAX_VALUE/2]
 center_y = [MAX_VALUE/2, MAX_VALUE/2]
 ###########################
+
+spi = None
+condition = threading.Condition()
+ledon = 0
+
+async def scan():
+    print("Scanning...")
+    devices = await BleakScanner.discover()
+    for device in devices:
+        print(device)
+
+async def get_services(address):
+    async with BleakClient(address) as client:
+        services = client.services
+        for service in services:
+            print(f"Service: {service.uuid}")
+            for characteristic in service.characteristics:
+                print(f"  Characteristic: {characteristic.uuid}")
+
+async def send_data(client, data):
+    byte_data = data.encode("utf-8")
+    await client.write_gatt_char(RX_CHARACTERISTIC_UUID, byte_data)
+    print(f"[BT] Sent: {data}")
+
+async def receive_data(client):
+    def notification_handler(sender, data):
+        print(f"Received: {data}")
+
+    client.start_notify(TX_CHARACTERISTIC_UUID, notification_handler)
+    time.sleep(1)
+    client.stop_notify(TX_CHARACTERISTIC_UUID)
 
 def recv_data(sock):
     while True:
@@ -113,7 +151,8 @@ def Scale(x, y):
 
 def GpioIsrHandler(channel):
     print("Key({0}) Pressed".format(channel))
-
+    global ledon
+    ledon = (ledon+1)%2
 
 def InitSocket():
     try:
@@ -152,8 +191,7 @@ def InitJoy(joynum):
     center_x[joynum] = Calibration(vrx_channel[joynum])
     center_y[joynum] = Calibration(vry_channel[joynum])
 
-    print("New center after calibration :")
-    print("[JOY{}] ({}, {})".format(joynum, center_x[joynum], center_y[joynum]))
+    print("New center after calibration for JOY{} : ({}, {})".format(joynum, center_x[joynum], center_y[joynum]))
 
 def ReadJoy(joynum):
     vrx_pos = SpiRead(vrx_channel[joynum])
@@ -189,16 +227,7 @@ def GetJoyValue():
 
     return speed, direction
 
-def main(argc, argv):
-    global TEST_MODE, condition
-    if argc >= 2:
-        if argv[1] == "test":
-            TEST_MODE = True
-
-    if not TEST_MODE:
-        condition=threading.Condition()
-        client_socket, client_thread = InitSocket()
-
+def main_test():
     InitSpi()
     InitGpio(0)
     InitGpio(1)
@@ -206,22 +235,13 @@ def main(argc, argv):
     InitJoy(1)
 
     lastmsg = ""
-
     while True:
-        if not TEST_MODE and not client_thread.is_alive():
-            break
-
         try:
             speed, direction = GetJoyValue()
 
             msg = "{0}{1}".format(speed, direction)
             if msg != lastmsg:
                 print(msg)
-                if not TEST_MODE:
-                    client_socket.send(msg.encode())
-
-                    with condition:
-                        condition.wait()
 
                 lastmsg = msg
 
@@ -229,14 +249,79 @@ def main(argc, argv):
             print("Thread exit by KeyboardInterrupt")
             break
 
+    GPIO.cleanup()
+
+async def main():
+    global ledon
+
+    client_socket, client_thread = InitSocket()
+    InitSpi()
+    InitGpio(0)
+    InitGpio(1)
+    InitJoy(0)
+    InitJoy(1)
+
+    lastmsg = ""
+    last_ledon = ledon
+
+    address = BLE_DEV_ADDRESS
+    async with BleakClient(address) as client:
+        try:
+            if not client.is_connected:
+                print(f"Failed to connect to {address}")
+
+            print(f"connected: {client.is_connected}")
+
+            while client.is_connected:
+                speed, direction = GetJoyValue()
+
+                msg = "{0}{1}".format(speed, direction)
+                if msg != lastmsg:
+                    await send_data(client, msg)
+                    lastmsg = msg
+
+                if ledon != last_ledon:
+                    ledmsg = "{0}z".format(ledon)
+                    print(f"[WIFI] Sent: {ledmsg}")
+                    client_socket.send(ledmsg.encode())
+                    last_ledon = ledon
+
+                    with condition:
+                        condition.wait()
+
+        except KeyboardInterrupt:
+            print("Thread exit by KeyboardInterrupt")
+
         except socket.error:
-            print("Thread exit by socket error : ")
-            break
+            print("Thread exit by socket error")
+
+        except Exception as e:
+            print(f"Exception : {e}")
+
+    print('disconnect')
 
     GPIO.cleanup()
-    if not TEST_MODE:
-        print("socket closed")
-        client_socket.close()
 
 if __name__ == '__main__':
-    main(len(sys.argv), sys.argv)
+    argc = len(sys.argv)
+    argv = sys.argv
+    if argc >= 2:
+        if argv[1] == "test":
+            main_test()
+        elif argv[1] == "scan":
+            asyncio.run(scan())
+        else:
+            print("not valid command : {}".format(argv[1]))
+    else:
+        try:
+            asyncio.run(main())
+        except KeyboardInterrupt:
+            print("KeyboardInterrupt")
+
+        except Exception as e:
+            print(f"Exception : {e}")
+
+
+
+
+
