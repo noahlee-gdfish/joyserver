@@ -4,11 +4,10 @@ import threading
 import RPi.GPIO as GPIO
 import spidev
 import time
+import conf_parser
 
 TEST_MODE = False
 
-DEFAULT_HOST = "192.168.219.112"
-DEFAULT_PORT = 9000
 BUF_SIZE = 1024
 
 MAX_VALUE = 1023
@@ -253,5 +252,13 @@ def main(argc, argv):
         print("socket closed")
         client_socket.close()
 
+def get_config():
+    config = conf_parser.get_config("JOYSERVER")
+
+    global DEFAULT_HOST, DEFAULT_PORT
+    DEFAULT_HOST = config["host_addr"]
+    DEFAULT_PORT = int(config["host_port_num"])
+
 if __name__ == '__main__':
+    get_config()
     main(len(sys.argv), sys.argv)
