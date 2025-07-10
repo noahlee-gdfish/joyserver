@@ -192,7 +192,7 @@ def main_test():
 
     GPIO.cleanup()
 
-async def main():
+async def main_ble():
     InitSpi()
     InitGpio(0)
     InitGpio(1)
@@ -234,6 +234,24 @@ async def main():
 
     GPIO.cleanup()
 
+def main(argc, argv):
+    if argc >= 2:
+        if argv[1] == "test":
+            main_test()
+        elif argv[1] == "scan":
+            asyncio.run(scan())
+        else:
+            print("not valid command : {}".format(argv[1]))
+    else:
+        try:
+            asyncio.run(main_ble())
+        except KeyboardInterrupt:
+            print("KeyboardInterrupt")
+
+        except Exception as e:
+            print(f"Exception : {e}")
+
+
 def get_config():
     config = conf_parser.get_config("JOYSERVER")
 
@@ -245,25 +263,5 @@ def get_config():
 if __name__ == '__main__':
     get_config()
 
-    argc = len(sys.argv)
-    argv = sys.argv
-    if argc >= 2:
-        if argv[1] == "test":
-            main_test()
-        elif argv[1] == "scan":
-            asyncio.run(scan())
-        else:
-            print("not valid command : {}".format(argv[1]))
-    else:
-        try:
-            asyncio.run(main())
-        except KeyboardInterrupt:
-            print("KeyboardInterrupt")
-
-        except Exception as e:
-            print(f"Exception : {e}")
-
-
-
-
+    main(len(sys.argv), sys.argv)
 

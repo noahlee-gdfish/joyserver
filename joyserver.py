@@ -261,4 +261,5 @@ def get_config():
 
 if __name__ == '__main__':
     get_config()
+
     main(len(sys.argv), sys.argv)
