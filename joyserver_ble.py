@@ -113,7 +113,7 @@ def Scale(x, y):
     return new_x, new_y
 
 def GpioIsrHandler(channel):
-    print("Key({0}) Pressed".format(channel))
+    #print("Key({0}) Pressed".format(channel))
     global ledon
     ledon = (ledon+1)%2
 
@@ -213,7 +213,6 @@ async def main_ble():
 
                     if ledon != last_ledon:
                         ledmsg = "{0}z".format(ledon)
-                        print(ledmsg)
                         await send_data(client, ledmsg)
                         last_ledon = ledon
 
