@@ -26,6 +26,7 @@ center_y = [MAX_VALUE/2, MAX_VALUE/2]
 ###########################
 
 spi = None
+ledon = 0
 
 async def scan():
     print("Scanning...")
@@ -113,6 +114,8 @@ def Scale(x, y):
 
 def GpioIsrHandler(channel):
     print("Key({0}) Pressed".format(channel))
+    global ledon
+    ledon = (ledon+1)%2
 
 def InitSpi():
     global spi
@@ -169,12 +172,6 @@ def GetJoyValue():
     return speed, direction
 
 def main_test():
-    InitSpi()
-    InitGpio(0)
-    InitGpio(1)
-    InitJoy(0)
-    InitJoy(1)
-
     lastmsg = ""
     while True:
         try:
@@ -190,16 +187,10 @@ def main_test():
             print("Thread exit by KeyboardInterrupt")
             break
 
-    GPIO.cleanup()
-
 async def main_ble():
-    InitSpi()
-    InitGpio(0)
-    InitGpio(1)
-    InitJoy(0)
-    InitJoy(1)
-
+    global ledon
     lastmsg = ""
+    last_ledon = ledon
 
     address = BLE_DEV_ADDRESS
     retry = True
@@ -220,11 +211,19 @@ async def main_ble():
                         await send_data(client, msg)
                         lastmsg = msg
 
+                    if ledon != last_ledon:
+                        ledmsg = "{0}z".format(ledon)
+                        print(ledmsg)
+                        await send_data(client, ledmsg)
+                        last_ledon = ledon
+
             except KeyboardInterrupt:
                 print("Thread exit by KeyboardInterrupt")
+                break
 
             except socket.error:
                 print("Thread exit by socket error")
+                break
 
             except Exception as e:
                 retry = True
@@ -232,9 +231,13 @@ async def main_ble():
 
     print('disconnect')
 
-    GPIO.cleanup()
-
 def main(argc, argv):
+    InitSpi()
+    InitGpio(0)
+    InitGpio(1)
+    InitJoy(0)
+    InitJoy(1)
+
     if argc >= 2:
         if argv[1] == "test":
             main_test()
@@ -251,6 +254,8 @@ def main(argc, argv):
         except Exception as e:
             print(f"Exception : {e}")
 
+    GPIO.cleanup()
+    print("Exit")
 
 def get_config():
     config = conf_parser.get_config("JOYSERVER")
