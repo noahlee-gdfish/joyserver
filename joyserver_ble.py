@@ -261,7 +261,8 @@ def get_config():
     config = conf_parser.get_config("JOYSERVER")
 
     global BLE_DEV_ADDRESS, RX_CHARACTERISTIC_UUID, TX_CHARACTERISTIC_UUID
-    BLE_DEV_ADDRESS = config["ble_addr"]
+    BLE_DEV_ADDRESS = config["ble_addr_esp32_v4"]
+    #BLE_DEV_ADDRESS = config["ble_addr_esp32_cam"]
     RX_CHARACTERISTIC_UUID = config["ble_rx_char_uuid"]
     TX_CHARACTERISTIC_UUID = config["ble_tx_char_uuid"]
 
