@@ -241,7 +241,10 @@ def main(argc, argv):
         if argv[1] == "test":
             main_test()
         elif argv[1] == "scan":
-            asyncio.run(scan())
+            if argc >= 3:
+                asyncio.run(get_services(argv[2]))
+            else:
+                asyncio.run(scan())
         else:
             print("not valid command : {}".format(argv[1]))
     else:
