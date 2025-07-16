@@ -30,17 +30,30 @@ ledon = 0
 
 async def scan():
     print("Scanning...")
-    devices = await BleakScanner.discover()
+    devices = await BleakScanner.discover(timeout=5.0)
     for device in devices:
-        print(device)
+        if device.name == BLE_DEVICE_NAME:
+            found = await get_services(device.address)
+            if found:
+                print(f"device found")
+                print(f" - address {device.address}")
+                print(f" - name    {device.name}")
+                return device.address
+
+    return ""
 
 async def get_services(address):
-    async with BleakClient(address) as client:
-        services = client.services
-        for service in services:
-            print(f"Service: {service.uuid}")
-            for characteristic in service.characteristics:
-                print(f"  Characteristic: {characteristic.uuid}")
+    try:
+        async with BleakClient(address) as client:
+            services = client.services
+            for service in services:
+                #print(f"Service: {service.uuid}")
+                for characteristic in service.characteristics:
+                    #print(f"  Characteristic: {characteristic.uuid}")
+                    if characteristic.uuid == RX_CHARACTERISTIC_UUID:
+                        return True
+    except:
+        return False
 
 async def send_data(client, data):
     byte_data = data.encode("utf-8")
@@ -192,7 +205,11 @@ async def main_ble():
     lastmsg = ""
     last_ledon = ledon
 
-    address = BLE_DEV_ADDRESS
+    address = await scan()
+    if address == "":
+        print("No matching BLE device found")
+        return
+
     retry = True
     while retry:
         async with BleakClient(address) as client:
@@ -262,11 +279,10 @@ def main(argc, argv):
 def get_config():
     config = conf_parser.get_config("JOYSERVER")
 
-    global BLE_DEV_ADDRESS, RX_CHARACTERISTIC_UUID, TX_CHARACTERISTIC_UUID
-    BLE_DEV_ADDRESS = config["ble_addr_esp32_v4"]
-    #BLE_DEV_ADDRESS = config["ble_addr_esp32_cam"]
+    global RX_CHARACTERISTIC_UUID, TX_CHARACTERISTIC_UUID, BLE_DEVICE_NAME
     RX_CHARACTERISTIC_UUID = config["ble_rx_char_uuid"]
     TX_CHARACTERISTIC_UUID = config["ble_tx_char_uuid"]
+    BLE_DEVICE_NAME = config["ble_device_name"]
 
 if __name__ == '__main__':
     get_config()
